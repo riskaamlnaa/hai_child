@@ -12,7 +12,7 @@ $page_title = $page_title ?? 'Dashboard';
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo $page_title; ?> - Hai Child</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -21,11 +21,17 @@ $page_title = $page_title ?? 'Dashboard';
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
+        * {
             font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
             background-color: #f4f6f9;
             margin: 0;
+            overflow-x: hidden;
         }
+        
         /* Sidebar Style */
         .sidebar {
             min-height: 100vh;
@@ -36,23 +42,28 @@ $page_title = $page_title ?? 'Dashboard';
             top: 0;
             left: 0;
             z-index: 1000;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
             box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
         }
+        
         .sidebar .sidebar-header {
             padding: 25px 20px;
             text-align: center;
             border-bottom: 1px solid rgba(255,255,255,0.1);
         }
+        
         .sidebar .sidebar-header h4 {
             margin: 0;
             font-weight: 700;
             letter-spacing: 1px;
         }
+        
         .sidebar .sidebar-header small {
             opacity: 0.8;
             font-size: 12px;
         }
+        
         .sidebar .nav-link {
             color: rgba(255,255,255,0.8);
             padding: 12px 20px;
@@ -62,12 +73,15 @@ $page_title = $page_title ?? 'Dashboard';
             transition: all 0.3s;
             display: flex;
             align-items: center;
+            text-decoration: none;
         }
+        
         .sidebar .nav-link i {
             width: 25px;
             margin-right: 10px;
             text-align: center;
         }
+        
         .sidebar .nav-link:hover, .sidebar .nav-link.active {
             background: rgba(255,255,255,0.2);
             color: white;
@@ -79,6 +93,8 @@ $page_title = $page_title ?? 'Dashboard';
             margin-left: 260px;
             padding: 20px;
             transition: all 0.3s;
+            min-height: 100vh;
+            padding-bottom: 80px;
         }
         
         /* Top Navbar */
@@ -93,16 +109,119 @@ $page_title = $page_title ?? 'Dashboard';
             align-items: center;
         }
         
+        /* Mobile Menu Toggle */
+        .mobile-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #667eea;
+            cursor: pointer;
+            padding: 5px;
+        }
+        
+        /* Bottom Navigation for Mobile */
+        .bottom-nav {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            padding: 10px 0;
+            z-index: 999;
+        }
+        
+        .bottom-nav .nav-item {
+            flex: 1;
+            text-align: center;
+            padding: 8px 5px;
+            color: #999;
+            text-decoration: none;
+            font-size: 11px;
+            transition: all 0.3s;
+        }
+        
+        .bottom-nav .nav-item i {
+            font-size: 20px;
+            display: block;
+            margin-bottom: 3px;
+        }
+        
+        .bottom-nav .nav-item.active, .bottom-nav .nav-item:hover {
+            color: #667eea;
+        }
+        
+        /* Overlay for mobile */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        
+        /* Responsive Styles */
         @media (max-width: 768px) {
-            .sidebar { margin-left: -260px; }
-            .main-content { margin-left: 0; }
+            .sidebar {
+                margin-left: -260px;
+                z-index: 1000;
+            }
+            
+            .sidebar.active {
+                margin-left: 0;
+            }
+            
+            .main-content {
+                margin-left: 0;
+                padding: 15px;
+                padding-bottom: 100px;
+            }
+            
+            .mobile-toggle {
+                display: block;
+            }
+            
+            .sidebar-overlay.active {
+                display: block;
+            }
+            
+            .bottom-nav {
+                display: flex;
+                justify-content: space-around;
+            }
+            
+            .top-navbar {
+                padding: 12px 15px;
+            }
+            
+            .top-navbar h4 {
+                font-size: 18px;
+            }
+            
+            .top-navbar .badge {
+                display: none;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .bottom-nav {
+                display: none !important;
+            }
         }
     </style>
 </head>
 <body>
 
+    <!-- Overlay for mobile -->
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <!-- Sidebar -->
-    <nav class="sidebar">
+    <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <i class="fas fa-baby-carriage fa-2x mb-2"></i>
             <h4>Hai Child</h4>
@@ -116,7 +235,7 @@ $page_title = $page_title ?? 'Dashboard';
                 <i class="fas fa-users"></i> Data Ibu & Anak
             </a>
             
-            <!-- MENU: Manajemen Data Ibu (Menggantikan Verifikasi Pendaftaran) -->
+            <!-- MENU: Manajemen Data Ibu -->
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'manajemen_ibu.php' ? 'active' : ''; ?>" href="manajemen_ibu.php">
                 <i class="fas fa-users-cog"></i> Manajemen Data Ibu
             </a>
@@ -150,13 +269,35 @@ $page_title = $page_title ?? 'Dashboard';
     <div class="main-content">
         <!-- Top Navbar -->
         <div class="top-navbar">
-            <h4 class="mb-0 text-primary"><i class="fas fa-chart-line me-2"></i><?php echo $page_title; ?></h4>
             <div class="d-flex align-items-center">
-                <span class="badge bg-light text-dark me-3 p-2">
+                <button class="mobile-toggle me-2" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h4 class="mb-0 text-primary"><i class="fas fa-chart-line me-2 d-none d-md-inline"></i><?php echo $page_title; ?></h4>
+            </div>
+            <div class="d-flex align-items-center">
+                <span class="badge bg-light text-dark me-2 me-md-3 p-2 d-none d-md-inline-block">
                     <i class="far fa-calendar me-1"></i> <?php echo date('d M Y'); ?>
                 </span>
-                <span class="fw-bold me-2">Halo, <?php echo htmlspecialchars($_SESSION['nama'] ?? 'User'); ?></span>
+                <span class="fw-bold me-2" style="font-size: 14px;">Halo, <?php echo htmlspecialchars($_SESSION['nama'] ?? 'User'); ?></span>
             </div>
         </div>
         
         <!-- Page Content Starts Here -->
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.querySelector('.sidebar-overlay').classList.toggle('active');
+        }
+        
+        // Close sidebar when clicking on a link (mobile)
+        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    toggleSidebar();
+                }
+            });
+        });
+    </script>
