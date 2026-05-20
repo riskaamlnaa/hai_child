@@ -1,198 +1,257 @@
 <?php
 session_start();
 require_once 'config/database.php';
-
-if (isset($_SESSION['user_id'])) {
-    if ($_SESSION['role'] == 'bidan') header("Location: bidan/dashboard.php");
-    else header("Location: ibu/dashboard.php");
-    exit();
-}
+require_once 'includes/functions.php';
 
 $error = '';
 $success = '';
+$password_tampil = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $nama = sanitize($_POST['nama_lengkap']);
-    $contact_method = $_POST['contact_method']; // 'email' atau 'phone'
-    $email = ($contact_method == 'email') ? sanitize($_POST['email']) : '';
-    $no_hp = ($contact_method == 'phone') ? sanitize($_POST['no_hp']) : '';
+    $nama_lengkap = sanitize($_POST['nama_lengkap']);
+    $email = sanitize($_POST['email']);
+    $no_hp = sanitize($_POST['no_hp']);
+    $username = sanitize($_POST['username']);
     $password = $_POST['password'];
+    $konfirmasi_password = $_POST['konfirmasi_password'];
+    $role = $_POST['role'] ?? 'ibu_anak';
     
     // Validasi
-    if (empty($nama)) {
-        $error = "Nama lengkap harus diisi!";
-    } elseif ($contact_method == 'email' && empty($email)) {
-        $error = "Email harus diisi!";
-    } elseif ($contact_method == 'phone' && empty($no_hp)) {
-        $error = "Nomor telepon harus diisi!";
-    } elseif (empty($password) || strlen($password) < 6) {
-        $error = "Password minimal 6 karakter!";
+    if (empty($nama_lengkap) || empty($email) || empty($username) || empty($password)) {
+        $error = "Semua field wajib diisi!";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Format email tidak valid!";
+    } elseif (strlen($password) < 8) {
+        $error = "Password minimal 8 karakter!";
+    } elseif ($password !== $konfirmasi_password) {
+        $error = "Konfirmasi password tidak cocok!";
     } else {
-        $database = new Database();
-        $db = $database->getConnection();
-        
-        // Cek duplikasi
-        $check_field = ($contact_method == 'email') ? 'email' : 'no_hp';
-        $check_value = ($contact_method == 'email') ? $email : $no_hp;
-        
-        $stmt = $db->prepare("SELECT id FROM users WHERE $check_field = ?");
-        $stmt->execute([$check_value]);
-        
-        if ($stmt->rowCount() > 0) {
-            $error = ($contact_method == 'email') ? "Email sudah terdaftar!" : "Nomor telepon sudah terdaftar!";
-        } else {
-            // Generate username unik
-            $username = ($contact_method == 'email') ? 
-                substr($email, 0, strpos($email, '@')) . rand(100,999) : 
-                'user' . substr($no_hp, -6);
+        try {
+            $db = (new Database())->getConnection();
             
-            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            // Cek apakah email/username sudah ada
+            $check = $db->prepare("SELECT id FROM users WHERE email = ? OR username = ?");
+            $check->execute([$email, $username]);
             
-            $query = "INSERT INTO users (username, password, role, nama_lengkap, email, no_hp, status) 
-                      VALUES (?, ?, 'ibu_anak', ?, ?, ?, 'active')";
-            $stmt = $db->prepare($query);
-            
-            if ($stmt->execute([$username, $hashed_password, $nama, $email, $no_hp])) {
-                $success = "✅ Pendaftaran berhasil! Silakan login dengan " . 
-                          ($contact_method == 'email' ? "email" : "nomor telepon") . " Anda.";
+            if ($check->rowCount() > 0) {
+                $error = "Email atau username sudah terdaftar!";
             } else {
-                $error = "Terjadi kesalahan saat mendaftar. Silakan coba lagi.";
+                // Hash password
+                $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                
+                // Insert user
+                $query = "INSERT INTO users (username, password, role, nama_lengkap, email, no_hp, status, created_at) 
+                         VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())";
+                $stmt = $db->prepare($query);
+                $stmt->execute([$username, $password_hash, $role, $nama_lengkap, $email, $no_hp]);
+                
+                // SIMPAN PASSWORD UNTUK DITAMPILKAN
+                $password_tampil = $password;
+                $success = true;
+                
+                $success_message = "
+                <div class='alert alert-success alert-dismissible fade show' role='alert'>
+                    <h5 class='mb-3'><i class='fas fa-check-circle me-2'></i>Registrasi Berhasil!</h5>
+                    <p class='mb-3'>Akun Anda telah dibuat. Silakan simpan informasi login berikut:</p>
+                    
+                    <div class='card bg-light border-0 mb-3'>
+                        <div class='card-body'>
+                            <div class='row g-3'>
+                                <div class='col-md-6'>
+                                    <strong>📧 Email:</strong><br>
+                                    <span class='text-primary'>$email</span>
+                                </div>
+                                <div class='col-md-6'>
+                                    <strong>👤 Username:</strong><br>
+                                    <span class='text-primary'>$username</span>
+                                </div>
+                                <div class='col-12'>
+                                    <strong>🔐 Password:</strong><br>
+                                    <div class='input-group'>
+                                        <input type='text' class='form-control font-monospace' 
+                                               value='$password' id='passwordTampil' readonly 
+                                               style='background: #fff3cd; font-weight: bold; color: #856404;'>
+                                        <button class='btn btn-outline-primary' type='button' onclick='copyPassword()'>
+                                            <i class='fas fa-copy me-1'></i> Copy
+                                        </button>
+                                    </div>
+                                    <small class='text-muted'>
+                                        <i class='fas fa-exclamation-triangle me-1'></i>
+                                        <strong>PENTING:</strong> Salin dan simpan password ini di tempat aman! 
+                                        Password tidak akan ditampilkan lagi.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class='d-flex gap-2'>
+                        <a href='login.php' class='btn btn-primary flex-fill'>
+                            <i class='fas fa-sign-in-alt me-2'></i> Login Sekarang
+                        </a>
+                        <a href='register.php' class='btn btn-outline-secondary flex-fill'>
+                            <i class='fas fa-redo me-2'></i> Daftar Lagi
+                        </a>
+                    </div>
+                    
+                    <button type='button' class='btn-close' data-bs-dismiss='alert'></button>
+                </div>
+                ";
             }
+        } catch (PDOException $e) {
+            $error = "Terjadi kesalahan: " . $e->getMessage();
         }
     }
-}
-
-function sanitize($data) {
-    return htmlspecialchars(strip_tags(trim($data)), ENT_QUOTES, 'UTF-8');
 }
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Daftar - Hai Child</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Akun - Hai Child</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { font-family: 'Quicksand', sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .register-card { background: white; border-radius: 24px; padding: 35px 30px; max-width: 450px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-        .register-header { text-align: center; margin-bottom: 25px; }
-        .register-header i { font-size: 50px; color: #667eea; margin-bottom: 10px; }
-        .register-header h2 { font-weight: 800; color: #333; margin: 0; }
-        .register-header p { color: #888; margin: 5px 0 0; font-size: 14px; }
-        
-        .form-label { font-weight: 700; color: #555; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; }
-        .form-label i { color: #667eea; margin-right: 8px; font-size: 16px; }
-        .form-control { border-radius: 14px; padding: 13px 16px; border: 2px solid #e0e0e0; font-size: 15px; transition: all 0.3s; background: #f8f9fa; }
-        .form-control:focus { border-color: #667eea; box-shadow: 0 0 0 4px rgba(102,126,234,0.15); background: white; }
-        
-        .contact-toggle { display: flex; gap: 10px; margin-bottom: 15px; }
-        .contact-option { flex: 1; }
-        .contact-option input { display: none; }
-        .contact-option label { display: block; padding: 12px; text-align: center; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s; font-weight: 600; color: #666; font-size: 14px; }
-        .contact-option input:checked + label { border-color: #667eea; background: rgba(102,126,234,0.1); color: #667eea; }
-        .contact-option label i { margin-right: 5px; }
-        
-        .btn-register { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 14px; font-weight: 700; border-radius: 14px; color: white; width: 100%; margin-top: 10px; transition: all 0.3s; }
-        .btn-register:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(102,126,234,0.4); }
-        .alert-custom { border-radius: 12px; padding: 12px 15px; margin-bottom: 20px; border: none; font-size: 14px; }
-        .back-link { display: block; text-align: center; margin-top: 20px; color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px; }
-        .back-link:hover { text-decoration: underline; }
-        .form-section { display: none; }
-        .form-section.active { display: block; }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .register-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+        .password-requirements {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .password-example {
+            background: white;
+            border: 2px dashed #ffc107;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #dc3545;
+            display: inline-block;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
-    <div class="register-card">
-        <div class="register-header">
-            <i class="fas fa-user-plus"></i>
-            <h2>Daftar Akun</h2>
-            <p>Bergabung untuk pantau kesehatan si kecil</p>
+    <div class="register-card p-4 p-md-5">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold text-primary"><i class="fas fa-user-plus me-2"></i>Daftar Akun</h2>
+            <p class="text-muted">Bergabung dengan Hai Child untuk monitoring kesehatan balita</p>
         </div>
 
-        <?php if($error): ?>
-        <div class="alert alert-danger alert-custom"><i class="fas fa-exclamation-circle me-2"></i><?php echo $error; ?></div>
-        <?php endif; ?>
-        <?php if($success): ?>
-        <div class="alert alert-success alert-custom"><i class="fas fa-check-circle me-2"></i><?php echo $success; ?><br><a href="login.php" style="color:#155724; font-weight:700;">Klik disini untuk login</a></div>
+        <?php if ($error): ?>
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="fas fa-exclamation-circle me-2"></i><?php echo $error; ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
         <?php endif; ?>
 
-        <?php if(!$success): ?>
+        <?php if ($success && isset($success_message)): ?>
+            <?php echo $success_message; ?>
+        <?php else: ?>
+        
         <form method="POST">
             <div class="mb-3">
-                <label class="form-label"><i class="fas fa-user"></i>Nama Lengkap</label>
-                <input type="text" name="nama_lengkap" class="form-control" required placeholder="Nama lengkap Anda">
+                <label class="form-label fw-bold">Nama Lengkap <span class="text-danger">*</span></label>
+                <input type="text" name="nama_lengkap" class="form-control" required 
+                       placeholder="Masukkan nama lengkap" value="<?php echo $_POST['nama_lengkap'] ?? ''; ?>">
             </div>
 
             <div class="mb-3">
-                <label class="form-label"><i class="fas fa-circle-question"></i>Pilih Metode Kontak</label>
-                <div class="contact-toggle">
-                    <div class="contact-option">
-                        <input type="radio" name="contact_method" id="method_email" value="email" checked>
-                        <label for="method_email"><i class="fas fa-envelope"></i>Email</label>
-                    </div>
-                    <div class="contact-option">
-                        <input type="radio" name="contact_method" id="method_phone" value="phone">
-                        <label for="method_phone"><i class="fas fa-phone"></i>Telepon</label>
-                    </div>
+                <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                <input type="email" name="email" class="form-control" required 
+                       placeholder="email@example.com" value="<?php echo $_POST['email'] ?? ''; ?>">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">No. HP</label>
+                <input type="text" name="no_hp" class="form-control" 
+                       placeholder="081234567890" value="<?php echo $_POST['no_hp'] ?? ''; ?>">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Username <span class="text-danger">*</span></label>
+                <input type="text" name="username" class="form-control" required 
+                       placeholder="Username untuk login" value="<?php echo $_POST['username'] ?? ''; ?>">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Password <span class="text-danger">*</span></label>
+                <input type="password" name="password" id="password" class="form-control" required 
+                       placeholder="Minimal 8 karakter">
+                
+                <!-- CATATAN PASSWORD -->
+                <div class="password-requirements mt-2">
+                    <small class="text-dark">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        <strong>Password harus:</strong> Minimal 8 karakter, kombinasi huruf besar, kecil, angka, dan simbol.<br>
+                        <strong>Contoh:</strong> <span class="password-example">Banjarmasin123.!</span>
+                    </small>
                 </div>
             </div>
 
-            <div class="mb-3 form-section active" id="section_email">
-                <label class="form-label"><i class="fas fa-envelope"></i>Email</label>
-                <input type="email" name="email" id="input_email" class="form-control" placeholder="nama@email.com">
-                <small class="text-muted">Email akan digunakan untuk login</small>
-            </div>
-
-            <div class="mb-3 form-section" id="section_phone">
-                <label class="form-label"><i class="fas fa-phone"></i>Nomor Telepon</label>
-                <input type="tel" name="no_hp" id="input_phone" class="form-control" placeholder="081234567890">
-                <small class="text-muted">Nomor WhatsApp aktif</small>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Konfirmasi Password <span class="text-danger">*</span></label>
+                <input type="password" name="konfirmasi_password" class="form-control" required 
+                       placeholder="Ulangi password">
             </div>
 
             <div class="mb-4">
-                <label class="form-label"><i class="fas fa-lock"></i>Password</label>
-                <input type="password" name="password" class="form-control" required placeholder="Minimal 6 karakter">
+                <label class="form-label fw-bold">Daftar Sebagai</label>
+                <select name="role" class="form-select" required>
+                    <option value="ibu_anak">Ibu Balita</option>
+                    <option value="bidan">Bidan (Perlu verifikasi)</option>
+                </select>
             </div>
 
-            <button type="submit" class="btn btn-register"><i class="fas fa-user-plus me-2"></i>Daftar Sekarang</button>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-user-plus me-2"></i>Daftar Sekarang
+                </button>
+                <a href="login.php" class="btn btn-outline-secondary">
+                    <i class="fas fa-sign-in-alt me-2"></i>Sudah Punya Akun? Login
+                </a>
+            </div>
         </form>
-        <a href="login.php" class="back-link"><i class="fas fa-arrow-left me-1"></i>Sudah punya akun? Login disini</a>
         <?php endif; ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    // Toggle Email/Phone Form
-    document.querySelectorAll('input[name="contact_method"]').forEach(radio => {
-        radio.addEventListener('change', function() {
-            const emailSec = document.getElementById('section_email');
-            const phoneSec = document.getElementById('section_phone');
-            const emailInp = document.getElementById('input_email');
-            const phoneInp = document.getElementById('input_phone');
+        function copyPassword() {
+            const passwordInput = document.getElementById('passwordTampil');
+            passwordInput.select();
+            document.execCommand('copy');
             
-            if (this.value === 'email') {
-                emailSec.classList.add('active');
-                phoneSec.classList.remove('active');
-                emailInp.required = true;
-                phoneInp.required = false;
-                phoneInp.value = '';
-            } else {
-                emailSec.classList.remove('active');
-                phoneSec.classList.add('active');
-                emailInp.required = false;
-                phoneInp.required = true;
-                emailInp.value = '';
-            }
-        });
-    });
-    // Only numbers for phone
-    document.getElementById('input_phone')?.addEventListener('input', function(e) {
-        this.value = this.value.replace(/[^0-9]/g, '');
-    });
+            // Visual feedback
+            const btn = event.target.closest('button');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i> Tersalin!';
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-success');
+            
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-primary');
+            }, 2000);
+        }
     </script>
 </body>
 </html>
