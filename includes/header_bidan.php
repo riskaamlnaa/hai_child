@@ -94,7 +94,7 @@ $page_title = $page_title ?? 'Dashboard';
             padding: 20px;
             transition: all 0.3s;
             min-height: 100vh;
-            padding-bottom: 80px;
+            padding-bottom: 100px;
         }
         
         /* Top Navbar */
@@ -117,7 +117,7 @@ $page_title = $page_title ?? 'Dashboard';
             font-size: 24px;
             color: #667eea;
             cursor: pointer;
-            padding: 5px;
+            padding: 5px 10px;
         }
         
         /* Bottom Navigation for Mobile */
@@ -129,8 +129,9 @@ $page_title = $page_title ?? 'Dashboard';
             right: 0;
             background: white;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
-            padding: 10px 0;
+            padding: 8px 0;
             z-index: 999;
+            justify-content: space-around;
         }
         
         .bottom-nav .nav-item {
@@ -141,16 +142,23 @@ $page_title = $page_title ?? 'Dashboard';
             text-decoration: none;
             font-size: 11px;
             transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
         
         .bottom-nav .nav-item i {
             font-size: 20px;
-            display: block;
             margin-bottom: 3px;
         }
         
-        .bottom-nav .nav-item.active, .bottom-nav .nav-item:hover {
+        .bottom-nav .nav-item.active {
             color: #667eea;
+        }
+        
+        .bottom-nav .nav-item.logout {
+            color: #ff4757;
         }
         
         /* Overlay for mobile */
@@ -162,7 +170,7 @@ $page_title = $page_title ?? 'Dashboard';
             right: 0;
             bottom: 0;
             background: rgba(0,0,0,0.5);
-            z-index: 999;
+            z-index: 998;
         }
         
         /* Responsive Styles */
@@ -192,7 +200,6 @@ $page_title = $page_title ?? 'Dashboard';
             
             .bottom-nav {
                 display: flex;
-                justify-content: space-around;
             }
             
             .top-navbar {
@@ -200,16 +207,24 @@ $page_title = $page_title ?? 'Dashboard';
             }
             
             .top-navbar h4 {
-                font-size: 18px;
+                font-size: 16px;
             }
             
             .top-navbar .badge {
                 display: none;
             }
+            
+            .top-navbar .d-none.d-md-inline {
+                display: none !important;
+            }
         }
         
         @media (min-width: 769px) {
             .bottom-nav {
+                display: none !important;
+            }
+            
+            .mobile-toggle {
                 display: none !important;
             }
         }
@@ -259,7 +274,7 @@ $page_title = $page_title ?? 'Dashboard';
             <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'profil.php' ? 'active' : ''; ?>" href="profil.php">
                 <i class="fas fa-user-circle"></i> Profil Saya
             </a>
-            <a class="nav-link" href="../logout.php">
+            <a class="nav-link" href="../logout.php" style="color: #ff6b6b; font-weight: 600;">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
         </div>
@@ -273,7 +288,9 @@ $page_title = $page_title ?? 'Dashboard';
                 <button class="mobile-toggle me-2" onclick="toggleSidebar()">
                     <i class="fas fa-bars"></i>
                 </button>
-                <h4 class="mb-0 text-primary"><i class="fas fa-chart-line me-2 d-none d-md-inline"></i><?php echo $page_title; ?></h4>
+                <h4 class="mb-0 text-primary">
+                    <i class="fas fa-chart-line me-2 d-none d-md-inline"></i><?php echo $page_title; ?>
+                </h4>
             </div>
             <div class="d-flex align-items-center">
                 <span class="badge bg-light text-dark me-2 me-md-3 p-2 d-none d-md-inline-block">
